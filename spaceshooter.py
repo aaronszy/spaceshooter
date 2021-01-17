@@ -241,6 +241,7 @@ while True:
 	clock.tick(120) # limit the loop to a maximum of 120 fps
 
 ## Next steps
+# testing
 # Build in a start and game over state
 # Switch to using Sprites, and implement bitmask collision detection
 # Implement some animation
