@@ -24,6 +24,9 @@ ship_states = {'left': ship_left, 'center': ship_center, 'right': ship_right}
 laser_surface = pygame.image.load('assets/laser.png').convert_alpha()
 
 enemy_surface = pygame.image.load('assets/enemy-center.png').convert_alpha()
+enemy_explode_anim = [pygame.image.load('assets/enemy-explode01.png').convert_alpha(),
+					pygame.image.load('assets/enemy-explode02.png').convert_alpha(),
+					pygame.image.load('assets/enemy-explode03.png').convert_alpha()]
 
 
 class Laser:
@@ -33,7 +36,6 @@ class Laser:
 		self.velocity = velocity
 		self.damage = 10
 		self.laser_rect = laser_surface.get_rect(center = (self.x, self.y))
-		self.mask = pygame.mask.from_surface(laser_surface)
 
 	def draw(self):
 		screen.blit(laser_surface, self.laser_rect)
@@ -49,19 +51,34 @@ class Enemy:
 		self.y = y
 		self.velocity = 2
 		self.health = 20
+		self.enemy_surface = enemy_surface
 		self.enemy_rect = enemy_surface.get_rect(center = (self.x, self.y))
-		self.mask = pygame.mask.from_surface(enemy_surface)
+		self.is_dead = False
+		self.is_exploding = False
+		self.frame_index = 0
 
 	def draw(self):
-		screen.blit(enemy_surface, self.enemy_rect)
+		if self.is_exploding:
+			print(self.frame_index // 10)
+			self.enemy_surface = enemy_explode_anim[self.frame_index // 10]
+			self.frame_index += 1
+			if self.frame_index > (len(enemy_explode_anim) * 10 - 1):
+				self.frame_index=0
+				self.is_exploding = False
+				self.is_dead = True
+				print('Destroyed')
+
+		screen.blit(self.enemy_surface, self.enemy_rect)
 
 	def move(self):
 		self.y += self.velocity
 		self.enemy_rect = enemy_surface.get_rect(center = (self.x, self.y))
 
 	def shoot(self):
-		shot = Laser(self.enemy_rect.centerx, self.enemy_rect.centery + 90, velocity = 10)
-		laser_shots.append(shot)
+		if not self.is_dead or not self.is_exploding:
+			shot = Laser(self.enemy_rect.centerx, self.enemy_rect.centery + 90, velocity = 10)
+			laser_shots.append(shot)
+
 
 	def check_collisions(self, shots):
 		for shot in shots:
@@ -73,7 +90,14 @@ class Enemy:
 			if self.enemy_rect.colliderect(shot.laser_rect):
 				shots.remove(shot) # remove shot from list
 				self.health -= shot.damage
-				return True
+				if self.health <= 0:
+					self.is_exploding = True
+
+	def update(self, shots):
+		self.move()
+		self.check_collisions(shots)
+		self.draw()
+
 
 class Player:
 	def __init__(self, x, y, state='center'):
@@ -139,7 +163,7 @@ class Player:
 		pygame.draw.rect(screen, (171,195,254), (self.x-25, self.y+50, self.ship_surface.get_width() * (self.health/self.max_health), 4))
 
 
-def collide(obj1, obj2):  # Check if two objects collide
+def collide(obj1, obj2):  # Check if two objects collide (not used right now, needs sprite bitmasks)
 	offset_x = obj2.x - obj1.x
 	offset_y = obj2.y - obj1.y
 	return obj1.mask.overlap(obj2.mask, (offset_x, offset_y)) != None
@@ -215,13 +239,9 @@ while True:
 
 	# Draw enemies, check for collisions
 	for enemy_ship in enemy_ships:
-		enemy_ship.draw()
-		enemy_ship.move()
-
-		if enemy_ship.check_collisions(laser_shots):
-			if enemy_ship.health <= 0:
-				enemy_ships.remove(enemy_ship)
-				print("Destroyed")
+		enemy_ship.update(laser_shots)
+		if enemy_ship.is_dead == True:
+			enemy_ships.remove(enemy_ship)
 
 		elif enemy_ship.y >= 1100:
 			enemy_ships.remove(enemy_ship)
@@ -229,6 +249,7 @@ while True:
 
 		elif random.randrange(0, 2*60) == 1:
 			enemy.shoot()
+
 
 	for laser in laser_shots:
 		if laser.y <= -5:
@@ -241,13 +262,12 @@ while True:
 	clock.tick(120) # limit the loop to a maximum of 120 fps
 
 ## Next steps
-# testing
 # Build in a start and game over state
-# Switch to using Sprites, and implement bitmask collision detection
 # Implement some animation
 # Implement shooting cooldown timers for both enemies and player
 # Create a more generic "Ship" class and wrap Player and Enemy classes around it, to reduce duplicate code
 # Switch hardcoded size values for size attributes, so that we can swap assets and change window sizes at will
+# Switch to using Sprites?, implement bitmask collision detection. Note: May not want to use Sprite Groups though.
 
 
 # To animate:
