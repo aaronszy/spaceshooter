@@ -4,7 +4,7 @@ import pygame, sys, random
 pygame.init()  # Initiate pygame
 screen = pygame.display.set_mode((600,1024))  # Init Display Surface. Pass in a tuple for the screen size
 clock = pygame.time.Clock()  # init a clock that we will use to control the fps
-FRAME_INTERVAL = 5 # ratio of game frames to animation frames
+FRAME_INTERVAL = 10 # ratio of game frames to animation frames
 
 dust_y_position = 0
 player_velocity = 5
@@ -25,9 +25,14 @@ ship_states = {'left': ship_left, 'center': ship_center, 'right': ship_right}
 laser_surface = pygame.image.load('assets/laser.png').convert_alpha()
 
 enemy_surface = pygame.image.load('assets/enemy-center.png').convert_alpha()
-enemy_explode_anim = [pygame.image.load('assets/enemy-explode01.png').convert_alpha(),
-					pygame.image.load('assets/enemy-explode02.png').convert_alpha(),
-					pygame.image.load('assets/enemy-explode03.png').convert_alpha()]
+enemy_explode_anim = [pygame.image.load('assets/explosion01.png').convert_alpha(),
+					pygame.image.load('assets/explosion02.png').convert_alpha(),
+					pygame.image.load('assets/explosion03.png').convert_alpha(),
+					pygame.image.load('assets/explosion04.png').convert_alpha(),
+					pygame.image.load('assets/explosion05.png').convert_alpha(),
+					pygame.image.load('assets/explosion06.png').convert_alpha(),
+					pygame.image.load('assets/explosion07.png').convert_alpha(),
+					pygame.image.load('assets/explosion08.png').convert_alpha()]
 
 
 class Laser():
@@ -71,7 +76,7 @@ class Enemy():
 	def draw(self):
 		if self.is_exploding:  # exploding animation
 			self.enemy_surface = enemy_explode_anim[self.frame_index // FRAME_INTERVAL]
-			self.enemy_rect = enemy_surface.get_rect(center = (self.x, self.y))
+			self.enemy_rect = enemy_surface.get_rect(center = (self.x-90, self.y+15))
 			self.frame_index += 1
 
 			if self.frame_index > (len(enemy_explode_anim) * FRAME_INTERVAL - 1):
@@ -118,6 +123,8 @@ class Enemy():
 				self.health -= shot.damage
 				if self.health <= 0:
 					self.is_exploding = True
+					self.velocity = 0
+					self.x_velocity = 0
 
 	def update(self, shots, player_x):
 		self.move()
@@ -139,7 +146,7 @@ class Player:
 		self.accel, self.decel = 2, -1
 		self.movement_vector = [0, 0]
 
-		self.countdown_timer_max = 20
+		self.countdown_timer_max = 15
 		self.countdown_timer = 0
 
 	def draw(self):
@@ -291,11 +298,6 @@ while True:
 				new_enemy = Enemy(300, -70, steer_behaviour='weave', shoot_behaviour='inline')
 				enemy_ships.append(new_enemy)
 
-
-		if event.type == ENEMYSPAWN:
-			# enemy = Enemy(random.randrange(50, 550), -50)
-			# enemy_ships.append(enemy)
-			pass
 
 	# PLAYER MOVEMENT
 	player.state = 'center' # if no keys pressed, bring ship state back to center
