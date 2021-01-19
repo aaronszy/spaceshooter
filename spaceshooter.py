@@ -47,10 +47,10 @@ class Laser():
 
 
 class Enemy():
-	def __init__(self, x, y, behavior = 'static', shooting = 'inline'):
+	def __init__(self, x, y, steer_behaviour= 'static', shoot_behaviour= 'inline'):
 		self.x = x
 		self.y = y
-		self.velocity = 2
+		self.velocity = 1
 		self.x_velocity = 2
 		self.health = 20
 
@@ -58,8 +58,10 @@ class Enemy():
 		self.enemy_rect = enemy_surface.get_rect(center = (self.x, self.y))
 
 		# behaviour
-		self.behaviour = behavior
-		self.shooting = shooting
+		self.steer_behaviour = steer_behaviour
+		self.shoot_behaviour = shoot_behaviour
+		self.countdown_timer_max = 60
+		self.countdown_timer = 0
 
 		# For death animation
 		self.is_dead = False
@@ -77,6 +79,7 @@ class Enemy():
 				self.is_exploding = False
 				self.is_dead = True
 				print('Destroyed')
+
 		else: # otherwise, draw enemy ship
 			self.enemy_surface = enemy_surface
 			self.enemy_rect = enemy_surface.get_rect(center = (self.x, self.y))
@@ -84,11 +87,11 @@ class Enemy():
 		screen.blit(self.enemy_surface, self.enemy_rect)
 
 	def move(self): 
-		if self.behaviour == 'static':
+		if self.steer_behaviour == 'static':
 			self.y += self.velocity
 			self.enemy_rect = enemy_surface.get_rect(center = (self.x, self.y))
 
-		elif self.behaviour == 'weave':
+		elif self.steer_behaviour == 'weave':
 			self.y += self.velocity
 			self.x += self.x_velocity
 
@@ -98,10 +101,15 @@ class Enemy():
 			elif self.x >= 540:
 				self.x_velocity = self.x_velocity * -1
 
-	def shoot(self):  # shoot a laser
+	def shoot(self, player_x):  # shoot a laser
 		if not self.is_dead or not self.is_exploding:
-			shot = Laser(self.enemy_rect.centerx, self.enemy_rect.centery + 90, velocity = 10)
-			laser_shots.append(shot)
+			
+			if self.shoot_behaviour == 'inline' and self.countdown_timer <= 0:
+				
+				if self.x in range(player_x - 10, player_x + 10):
+					shot = Laser(self.enemy_rect.centerx, self.enemy_rect.centery + 90, velocity = 5)
+					laser_shots.append(shot)
+					self.countdown_timer = self.countdown_timer_max # reset countdown
 
 	def check_collisions(self, shots):  # check if being hit by lasers
 		for shot in shots:
@@ -111,10 +119,13 @@ class Enemy():
 				if self.health <= 0:
 					self.is_exploding = True
 
-	def update(self, shots):
+	def update(self, shots, player_x):
 		self.move()
 		self.check_collisions(shots)
+		self.shoot(player_x)
 		self.draw()
+		if self.countdown_timer <= self.countdown_timer_max and self.countdown_timer > 0:
+			self.countdown_timer -= 1
 
 
 class Player:
@@ -127,6 +138,9 @@ class Player:
 		self.recharge_rate = 0.02
 		self.accel, self.decel = 2, -1
 		self.movement_vector = [0, 0]
+
+		self.countdown_timer_max = 20
+		self.countdown_timer = 0
 
 	def draw(self):
 		self.ship_surface = ship_states[self.state]
@@ -156,8 +170,10 @@ class Player:
 		self.x += self.movement_vector[0]
 
 	def shoot(self):
-		shot = Laser(self.ship_rect.centerx, self.ship_rect.centery - 90)
-		laser_shots.append(shot)
+		if self.countdown_timer <= 0:
+			shot = Laser(self.ship_rect.centerx, self.ship_rect.centery - 90)
+			laser_shots.append(shot)
+			self.countdown_timer = self.countdown_timer_max # reset countdown
 
 	def check_collisions(self):
 		for shot in laser_shots:
@@ -174,7 +190,11 @@ class Player:
 		self.check_collisions()
 		if self.health <= self.max_health:  # each frame, recharge some health
 			self.health += self.recharge_rate
+		
 		self.draw()
+
+		if self.countdown_timer <= self.countdown_timer_max and self.countdown_timer > 0:
+			self.countdown_timer -= 1
 
 	def healthbar(self):  # draw healthbar based on current vs max health
 		pygame.draw.rect(screen, (0,0,0), (self.x-25, self.y+50, self.ship_surface.get_width(), 4))
@@ -239,6 +259,7 @@ def spawn_v(ship_count, y_spacing = 40):  # enter odd number
 	return ship_list
 
 
+
 # EVENT TIMERS
 ENEMYSPAWN = pygame.USEREVENT # create a pygame user event. the +1 is to differentiate it from the first uservent - SPAWNPIPE
 pygame.time.set_timer(ENEMYSPAWN, 2000)
@@ -267,7 +288,7 @@ while True:
 				enemy_ships.extend(spawn_v(5, 100))
 
 			if event.key == pygame.K_s: 
-				new_enemy = Enemy(300, -70, behavior='weave')
+				new_enemy = Enemy(300, -70, steer_behaviour='weave', shoot_behaviour='inline')
 				enemy_ships.append(new_enemy)
 
 
@@ -298,6 +319,9 @@ while True:
 		# player.move(x = player_velocity)
 		player.move_vector('right')
 
+	if keys[pygame.K_SPACE]:
+		player.shoot()
+
 	# DRAW STUFF
 	# Draw background, move dust
 	screen.blit(bg_surface, (0,0))
@@ -312,7 +336,8 @@ while True:
 
 	# Draw all enemies, check for collisions
 	for enemy_ship in enemy_ships:
-		enemy_ship.update(laser_shots)
+		enemy_ship.update(laser_shots, player.x)
+
 		if enemy_ship.is_dead == True:
 			enemy_ships.remove(enemy_ship)
 
@@ -320,8 +345,8 @@ while True:
 			enemy_ships.remove(enemy_ship)
 			print("enemy clipped")
 
-		elif random.randrange(0, 2*60) == 1:
-			enemy_ship.shoot()
+		# elif random.randrange(0, 2*60) == 1:
+		# 	enemy_ship.shoot()
 
 
 	for laser in laser_shots:
