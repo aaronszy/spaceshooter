@@ -4,7 +4,7 @@ import pygame, sys, random
 pygame.init()  # Initiate pygame
 screen = pygame.display.set_mode((600,1024))  # Init Display Surface. Pass in a tuple for the screen size
 clock = pygame.time.Clock()  # init a clock that we will use to control the fps
-FRAME_INTERVAL = 50 # ratio of game frames to animation frames
+FRAME_INTERVAL = 3 # ratio of game frames to animation frames
 
 dust_y_position = 0
 player_velocity = 5
@@ -60,19 +60,17 @@ class Laser():
 		if self.is_exploding:
 			self.velocity = 0 # stop moving
 			self.laser_surface = laser_explode_anim[self.frame_index // FRAME_INTERVAL]
-			self.laser_rect = self.laser_surface.get_rect(center = (self.x, self.y - random.randint(5, 25)))
+			self.laser_rect = self.laser_surface.get_rect(center = (self.x, self.y))
 			self.frame_index += 1
 
 			if self.frame_index > (len(laser_explode_anim) * FRAME_INTERVAL - 1):
 				self.can_cull= True
 				self.frame_index=0
-				print('can cull')
 		
 		else:
 			self.laser_surface = laser_surface_asset
 			self.laser_rect = self.laser_surface.get_rect(center = (self.x, self.y))
 
-		print(self.y)
 		screen.blit(self.laser_surface, self.laser_rect)
 
 	def move(self):
@@ -159,8 +157,10 @@ class Enemy():
 		if not self.is_exploding:
 			for shot in shots:
 				if shot.is_exploding == False and self.enemy_rect.colliderect(shot.laser_rect): # if colliding with a shot
+					
 					print(shot.is_exploding)
 					shot.is_exploding = True  # trigger the shot hit animation
+					shot.y = shot.y - random.randint(5, 25) # offset the laser, want the hit animation to trigger a bit on the ship itself
 					self.health -= shot.damage
 
 					if self.health <= 0:
