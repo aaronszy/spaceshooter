@@ -151,7 +151,7 @@ class Enemy():
 			if self.shoot_behaviour == 'inline' and self.countdown_timer <= 0:
 				
 				if self.x in range(player_x - 10, player_x + 10):
-					shot = Laser(self.enemy_rect.centerx, self.enemy_rect.centery + 90, velocity = 5)
+					shot = Laser(self.enemy_rect.centerx, self.enemy_rect.centery + 90, set_velocity = 5)
 					enemy_laser_shots.append(shot)
 					self.countdown_timer = self.countdown_timer_max # reset countdown
 
