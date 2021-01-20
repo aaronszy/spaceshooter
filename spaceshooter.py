@@ -4,13 +4,14 @@ import pygame, sys, random
 pygame.init()  # Initiate pygame
 screen = pygame.display.set_mode((600,1024))  # Init Display Surface. Pass in a tuple for the screen size
 clock = pygame.time.Clock()  # init a clock that we will use to control the fps
-FRAME_INTERVAL = 10 # ratio of game frames to animation frames
+FRAME_INTERVAL = 50 # ratio of game frames to animation frames
 
 dust_y_position = 0
 player_velocity = 5
 
 # Object lists
-laser_shots = []
+player_laser_shots = []
+enemy_laser_shots = []
 enemy_ships = []
 
 # ASSETS
@@ -22,9 +23,15 @@ ship_center = pygame.image.load('assets/ship-center.png').convert_alpha()
 ship_right = pygame.image.load('assets/ship-right.png').convert_alpha()
 ship_states = {'left': ship_left, 'center': ship_center, 'right': ship_right}
 
-laser_surface = pygame.image.load('assets/laser.png').convert_alpha()
+laser_surface_asset = pygame.image.load('assets/laser.png').convert_alpha()
+laser_explode_anim = [pygame.image.load('assets/laser-hit01.png').convert_alpha(),
+					pygame.image.load('assets/laser-hit02.png').convert_alpha(),
+					pygame.image.load('assets/laser-hit03.png').convert_alpha(),
+					pygame.image.load('assets/laser-hit04.png').convert_alpha(),
+					pygame.image.load('assets/laser-hit05.png').convert_alpha(),
+					pygame.image.load('assets/laser-hit06.png').convert_alpha()]
 
-enemy_surface = pygame.image.load('assets/enemy-center.png').convert_alpha()
+enemy_surface_asset = pygame.image.load('assets/enemy-center.png').convert_alpha()
 enemy_explode_anim = [pygame.image.load('assets/explosion01.png').convert_alpha(),
 					pygame.image.load('assets/explosion02.png').convert_alpha(),
 					pygame.image.load('assets/explosion03.png').convert_alpha(),
@@ -36,19 +43,51 @@ enemy_explode_anim = [pygame.image.load('assets/explosion01.png').convert_alpha(
 
 
 class Laser():
-	def __init__(self, x, y, damage = 10, velocity = -10):
+	def __init__(self, x, y, set_damage = 10, set_velocity = -10):
 		self.x = x
 		self.y = y
-		self.velocity = velocity
-		self.damage = 10
-		self.laser_rect = laser_surface.get_rect(center = (self.x, self.y))
+		self.velocity = set_velocity
+		self.damage = set_damage
+		self.laser_surface = laser_surface_asset
+		self.laser_rect = self.laser_surface.get_rect(center = (self.x, self.y))
+
+		# for hit animation
+		self.can_cull= False
+		self.is_exploding = False
+		self.frame_index = 0
 
 	def draw(self):
-		screen.blit(laser_surface, self.laser_rect)
+		if self.is_exploding:
+			self.velocity = 0 # stop moving
+			self.laser_surface = laser_explode_anim[self.frame_index // FRAME_INTERVAL]
+			self.laser_rect = self.laser_surface.get_rect(center = (self.x, self.y - random.randint(5, 25)))
+			self.frame_index += 1
+
+			if self.frame_index > (len(laser_explode_anim) * FRAME_INTERVAL - 1):
+				self.can_cull= True
+				self.frame_index=0
+				print('can cull')
+		
+		else:
+			self.laser_surface = laser_surface_asset
+			self.laser_rect = self.laser_surface.get_rect(center = (self.x, self.y))
+
+		print(self.y)
+		screen.blit(self.laser_surface, self.laser_rect)
 
 	def move(self):
 		self.y += self.velocity
-		self.laser_rect = laser_surface.get_rect(center = (self.x, self.y))
+		self.laser_rect = self.laser_surface.get_rect(center = (self.x, self.y))
+
+	def check_out_of_range(self):
+		if self.y <= -5 or self.y >= 1040:
+			self.can_cull = True
+
+	def update(self):
+		self.check_out_of_range()
+		self.move()
+		self.draw()
+
 
 
 class Enemy():
@@ -59,14 +98,14 @@ class Enemy():
 		self.x_velocity = 2
 		self.health = 20
 
-		self.enemy_surface = enemy_surface
-		self.enemy_rect = enemy_surface.get_rect(center = (self.x, self.y))
+		self.enemy_surface = enemy_surface_asset
+		self.enemy_rect = self.enemy_surface.get_rect(center = (self.x, self.y))
 
 		# behaviour
 		self.steer_behaviour = steer_behaviour
 		self.shoot_behaviour = shoot_behaviour
 		self.countdown_timer_max = 60
-		self.countdown_timer = 0
+		self.countdown_timer = random.randint(0, self.countdown_timer_max)
 
 		# For death animation
 		self.is_dead = False
@@ -76,7 +115,7 @@ class Enemy():
 	def draw(self):
 		if self.is_exploding:  # exploding animation
 			self.enemy_surface = enemy_explode_anim[self.frame_index // FRAME_INTERVAL]
-			self.enemy_rect = enemy_surface.get_rect(center = (self.x-90, self.y+15))
+			self.enemy_rect = self.enemy_surface.get_rect(center = (self.x, self.y))
 			self.frame_index += 1
 
 			if self.frame_index > (len(enemy_explode_anim) * FRAME_INTERVAL - 1):
@@ -86,15 +125,15 @@ class Enemy():
 				print('Destroyed')
 
 		else: # otherwise, draw enemy ship
-			self.enemy_surface = enemy_surface
-			self.enemy_rect = enemy_surface.get_rect(center = (self.x, self.y))
+			self.enemy_surface = enemy_surface_asset
+			self.enemy_rect = self.enemy_surface.get_rect(center = (self.x, self.y))
 
 		screen.blit(self.enemy_surface, self.enemy_rect)
 
 	def move(self): 
 		if self.steer_behaviour == 'static':
 			self.y += self.velocity
-			self.enemy_rect = enemy_surface.get_rect(center = (self.x, self.y))
+			self.enemy_rect = self.enemy_surface.get_rect(center = (self.x, self.y))
 
 		elif self.steer_behaviour == 'weave':
 			self.y += self.velocity
@@ -113,18 +152,21 @@ class Enemy():
 				
 				if self.x in range(player_x - 10, player_x + 10):
 					shot = Laser(self.enemy_rect.centerx, self.enemy_rect.centery + 90, velocity = 5)
-					laser_shots.append(shot)
+					enemy_laser_shots.append(shot)
 					self.countdown_timer = self.countdown_timer_max # reset countdown
 
 	def check_collisions(self, shots):  # check if being hit by lasers
-		for shot in shots:
-			if self.enemy_rect.colliderect(shot.laser_rect):
-				shots.remove(shot)  # remove shot from list
-				self.health -= shot.damage
-				if self.health <= 0:
-					self.is_exploding = True
-					self.velocity = 0
-					self.x_velocity = 0
+		if not self.is_exploding:
+			for shot in shots:
+				if shot.is_exploding == False and self.enemy_rect.colliderect(shot.laser_rect): # if colliding with a shot
+					print(shot.is_exploding)
+					shot.is_exploding = True  # trigger the shot hit animation
+					self.health -= shot.damage
+
+					if self.health <= 0:
+						self.is_exploding = True
+						self.velocity = 0
+						self.x_velocity = 0
 
 	def update(self, shots, player_x):
 		self.move()
@@ -146,7 +188,7 @@ class Player:
 		self.accel, self.decel = 2, -1
 		self.movement_vector = [0, 0]
 
-		self.countdown_timer_max = 15
+		self.countdown_timer_max = 25
 		self.countdown_timer = 0
 
 	def draw(self):
@@ -179,13 +221,13 @@ class Player:
 	def shoot(self):
 		if self.countdown_timer <= 0:
 			shot = Laser(self.ship_rect.centerx, self.ship_rect.centery - 90)
-			laser_shots.append(shot)
+			player_laser_shots.append(shot)
 			self.countdown_timer = self.countdown_timer_max # reset countdown
 
 	def check_collisions(self):
-		for shot in laser_shots:
+		for shot in enemy_laser_shots:
 			if self.ship_rect.colliderect(shot.laser_rect):
-				laser_shots.remove(shot) # remove shot from list
+				enemy_laser_shots.remove(shot) # remove shot from list
 				print("OUCH!")
 				self.health -= shot.damage
 		# for enemy in enemy_ships:
@@ -217,10 +259,12 @@ def draw_dust(pos = 0):
 	screen.blit(bg_dust_surface, (0, pos))
 	screen.blit(bg_dust_surface, (0, pos - 1024))
 
-def draw_laser_shots(Shots):
-	for Shot in Shots: 
-		Shot.draw()
-		Shot.move()
+def update_laser_shots(shots):
+	for shot in shots:
+		if shot.can_cull:
+			shots.remove(shot) 
+		
+		shot.update()
 
 def collide(obj1, obj2):  # Check if two objects collide (not used right now, needs sprite bitmasks)
 	offset_x = obj2.x - obj1.x
@@ -229,6 +273,12 @@ def collide(obj1, obj2):  # Check if two objects collide (not used right now, ne
 
 
 ## SPAWN FUNCTIONS
+def spawn_single(x):
+	ship_list = []
+	new_enemy = Enemy(x, -70)
+	ship_list.append(new_enemy)
+	return ship_list
+
 def spawn_row(ship_count):
 	x_spacing = 600 // (ship_count)
 	x = x_spacing
@@ -333,12 +383,10 @@ while True:
 	if dust_y_position >= 1024:
 		dust_y_position = 0
 
-	# Draw lasers
-	draw_laser_shots(laser_shots)
 
 	# Draw all enemies, check for collisions
 	for enemy_ship in enemy_ships:
-		enemy_ship.update(laser_shots, player.x)
+		enemy_ship.update(player_laser_shots, player.x)
 
 		if enemy_ship.is_dead == True:
 			enemy_ships.remove(enemy_ship)
@@ -351,9 +399,17 @@ while True:
 		# 	enemy_ship.shoot()
 
 
-	for laser in laser_shots:
-		if laser.y <= -5 or laser.y >= 1040:
-			laser_shots.remove(laser)
+	for laser in player_laser_shots:
+		if laser.can_cull:
+			player_laser_shots.remove(laser)
+
+	# for laser in enemy_laser_shots:
+	# 	if laser.y <= -5 or laser.y >= 1040:
+	# 		enemy_laser_shots.remove(laser)
+
+	# Draw lasers
+	update_laser_shots(player_laser_shots)
+	update_laser_shots(enemy_laser_shots)
 
 	# Draw player ship, check collisions
 	player.update()
