@@ -87,7 +87,6 @@ class Laser():
 		self.draw()
 
 
-
 class Enemy():
 	def __init__(self, x, y, steer_behaviour= 'static', shoot_behaviour= 'inline'):
 		self.x = x
@@ -129,19 +128,20 @@ class Enemy():
 		screen.blit(self.enemy_surface, self.enemy_rect)
 
 	def move(self): 
-		if self.steer_behaviour == 'static':
+		if self.steer_behaviour == 'static': # move in a straight line
 			self.y += self.velocity
 			self.enemy_rect = self.enemy_surface.get_rect(center = (self.x, self.y))
 
-		elif self.steer_behaviour == 'weave':
+		elif self.steer_behaviour == 'weave': # weave back and forth across screen
 			self.y += self.velocity
 			self.x += self.x_velocity
 
-			# if x is between 0 and 60, set X velocity to positive. If between 540 and 600, set it to negative
-			if self.x <= 60:
-				self.x_velocity = self.x_velocity * -1
-			elif self.x >= 540:
-				self.x_velocity = self.x_velocity * -1
+			# if x is between 540 and 600, progressively subtract 0.1 until it reaches -1, and vice versa on the other side
+			if self.x <= 60 and self.y > 0:
+				self.x_velocity = self.x_velocity + 0.1
+
+			elif self.x >= 540  and self.y > 0:
+				self.x_velocity = self.x_velocity - 0.1
 
 	def shoot(self, player_x):  # shoot a laser
 		if not self.is_dead or not self.is_exploding:
@@ -249,10 +249,30 @@ class Player:
 		pygame.draw.rect(screen, (0,0,0), (self.x-25, self.y+50, self.ship_surface.get_width(), 4))
 		pygame.draw.rect(screen, (171,195,254), (self.x-25, self.y+50, self.ship_surface.get_width() * (self.health/self.max_health), 4))
 
+	# takes in a schedule containing time:event
+	# takes in a list of enemy ships and does stuff to it
+
+	# within its update function it:
+	# calls their update functions (containing move, shoot, collide)
+	# culls them when they are out of view
+	# spawns new enemies using spawn functions according to a schedule based on incrementing game time
+		# self.ships = ship_list
+
+class EnemyManager():
+	def __init__(self, ship_list):
+		self.ships = ship_list
+
+
+	def spawn_single(self, x):
+		new_enemy = Enemy(x, -70)
+		self.ships.append(new_enemy)
+
+
 
 
 ## INITS
 player = Player(300, 860, state='center')
+enemies = EnemyManager(ship_list=enemy_ships)
 
 ## HELPER FUNCTIONS
 def draw_dust(pos = 0):
@@ -315,6 +335,31 @@ def spawn_v(ship_count, y_spacing = 40):  # enter odd number
 
 	return ship_list
 
+def spawn_weave(ship_count, direction="right", y_spacing = 60):
+	x_spacing = 600 // (ship_count)
+	y_spacing *= -1
+	y = -40
+	ship_list = []
+
+	if direction is 'right':
+		x_velocity = 2
+		x_spacing *= -1
+		x = 0
+
+	elif direction is 'left':
+		x_velocity = -2
+		x = 600
+
+
+	for i in range(ship_count):
+		new_enemy = Enemy(x, y, steer_behaviour='weave', shoot_behaviour='inline')
+		new_enemy.x_velocity = x_velocity
+		ship_list.append(new_enemy)
+		y += y_spacing
+		x += x_spacing
+		print(x)
+
+	return ship_list
 
 
 # EVENT TIMERS
@@ -345,8 +390,16 @@ while True:
 				enemy_ships.extend(spawn_v(5, 100))
 
 			if event.key == pygame.K_s: 
-				new_enemy = Enemy(300, -70, steer_behaviour='weave', shoot_behaviour='inline')
-				enemy_ships.append(new_enemy)
+				print('single')
+				enemies.spawn_single(300)
+
+			if event.key == pygame.K_f: 
+				print('S - right')
+				enemy_ships.extend(spawn_weave(5, direction='right'))
+
+			if event.key == pygame.K_d:
+				print('S - left')
+				enemy_ships.extend(spawn_weave(5, direction='left'))
 
 
 	# PLAYER MOVEMENT
