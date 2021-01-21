@@ -260,13 +260,78 @@ class Player:
 
 class EnemyManager():
 	def __init__(self, ship_list):
+		self.x_spacing = 0
 		self.ships = ship_list
+		
+		self.schedule = {10: (self.spawn_row, [], {'ship_count':7})} # time(s) : function, args, kwargs
 
+	def execute_schedule(self, key):
+		# self.schedule[key]()
+		self.func, self.args, self.kwargs = self.schedule[key] # extract function, arguments, kwargs
+		self.func(*self.args, **self.kwargs) # execute function, unpacking the args and kwargs
 
-	def spawn_single(self, x):
-		new_enemy = Enemy(x, -70)
-		self.ships.append(new_enemy)
+	def spawn_single(self, x=300):
+		self.new_enemy = Enemy(x, -70)
+		self.ships.append(self.new_enemy)
 
+	def spawn_row(self, ship_count=5):
+		self.x_spacing = 600 // (ship_count+1)
+		self.x = self.x_spacing
+
+		for i in range(ship_count):
+			self.new_enemy = Enemy(self.x, -70)
+			self.ships.append(self.new_enemy)
+			self.x += self.x_spacing
+
+	def spawn_column(self, x=300, ship_count=3, y_spacing = 150):
+		self.y = -70
+
+		for i in range(ship_count):
+			self.new_enemy = Enemy(x, self.y)
+			self.ships.append(self.new_enemy)
+			self.y -= y_spacing
+
+	def spawn_v(self, ship_count=5, y_spacing = 100):  # enter odd number
+		self.x_spacing = 600 // (ship_count)
+		self.x = self.x_spacing
+		self.y = y_spacing
+		self.depth = ship_count // 2 + 1
+
+		# for first row, add 1 ship at 300, then for each depth add 2 ships 300 x, 300 + x, then increment x by x_space. Same for y, y_spacing
+		# First ship - point
+		self.new_enemy = Enemy(300, -70)
+		self.ships.append(self.new_enemy)
+
+		for i in range(self.depth):
+			self.new_enemy = Enemy(300 + self.x, -70 - self.y)
+			self.ships.append(self.new_enemy)
+
+			self.new_enemy = Enemy(300 - self.x, -70 - self.y)
+			self.ships.insert(0, self.new_enemy)
+
+			self.y += y_spacing
+			self.x += self.x_spacing
+
+	def spawn_weave(self, ship_count=5, direction="right", y_spacing = 60):
+		self.x_spacing = 600 // ship_count
+		y_spacing *= -1
+		self.y = -40
+
+		if direction is 'right':
+			self.x_velocity = 2
+			self.x_spacing *= -1
+			self.x = 0
+
+		elif direction is 'left':
+			self.x_velocity = -2
+			self.x = 600
+
+		for i in range(ship_count):
+			self.new_enemy = Enemy(self.x, self.y, steer_behaviour='weave', shoot_behaviour='inline')
+			self.new_enemy.x_velocity = self.x_velocity
+			self.ships.append(self.new_enemy)
+			self.y += y_spacing
+			self.x += self.x_spacing
 
 
 
@@ -292,75 +357,6 @@ def collide(obj1, obj2):  # Check if two objects collide (not used right now, ne
 	return obj1.mask.overlap(obj2.mask, (offset_x, offset_y)) != None
 
 
-## SPAWN FUNCTIONS
-def spawn_single(x):
-	ship_list = []
-	new_enemy = Enemy(x, -70)
-	ship_list.append(new_enemy)
-	return ship_list
-
-def spawn_row(ship_count):
-	x_spacing = 600 // (ship_count)
-	x = x_spacing
-	ship_list = []
-
-	for i in range(0, ship_count-1):
-		new_enemy = Enemy(x, -70)
-		ship_list.append(new_enemy)
-		x += x_spacing
-
-	return ship_list
-
-def spawn_v(ship_count, y_spacing = 40):  # enter odd number
-	x_spacing = 600 // (ship_count)
-	x = x_spacing
-	y = y_spacing
-	depth = ship_count // 2 + 1
-	ship_list = []
-
-	# for first row, add 1 ship at 300, then for each depth add 2 ships 300 x, 300 + x, then increment x by x_space. Same for y, y_spacing
-	# First ship - point
-	new_enemy = Enemy(300, -70)
-	ship_list.append(new_enemy)
-
-	for i in range(depth):
-		new_enemy = Enemy(300 + x, -70 - y)
-		ship_list.append(new_enemy)
-
-		new_enemy = Enemy(300 - x, -70 - y)
-		ship_list.insert(0,new_enemy)
-
-		y += y_spacing
-		x += x_spacing
-
-	return ship_list
-
-def spawn_weave(ship_count, direction="right", y_spacing = 60):
-	x_spacing = 600 // (ship_count)
-	y_spacing *= -1
-	y = -40
-	ship_list = []
-
-	if direction is 'right':
-		x_velocity = 2
-		x_spacing *= -1
-		x = 0
-
-	elif direction is 'left':
-		x_velocity = -2
-		x = 600
-
-
-	for i in range(ship_count):
-		new_enemy = Enemy(x, y, steer_behaviour='weave', shoot_behaviour='inline')
-		new_enemy.x_velocity = x_velocity
-		ship_list.append(new_enemy)
-		y += y_spacing
-		x += x_spacing
-		print(x)
-
-	return ship_list
-
 
 # EVENT TIMERS
 ENEMYSPAWN = pygame.USEREVENT # create a pygame user event. the +1 is to differentiate it from the first uservent - SPAWNPIPE
@@ -383,23 +379,28 @@ while True:
 
 			if event.key == pygame.K_r: 
 				print('row')
-				enemy_ships.extend(spawn_row(5))
+				# enemies.spawn_row()
+				enemies.execute_schedule(10)
 
 			if event.key == pygame.K_v: 
 				print('V')
-				enemy_ships.extend(spawn_v(5, 100))
+				enemies.spawn_v()
+
+			if event.key == pygame.K_c: 
+				print('column')
+				enemies.spawn_column()
 
 			if event.key == pygame.K_s: 
 				print('single')
-				enemies.spawn_single(300)
+				enemies.spawn_single(random.randint(50,550))
 
 			if event.key == pygame.K_f: 
 				print('S - right')
-				enemy_ships.extend(spawn_weave(5, direction='right'))
+				enemies.spawn_weave(direction='right')
 
 			if event.key == pygame.K_d:
 				print('S - left')
-				enemy_ships.extend(spawn_weave(5, direction='left'))
+				enemies.spawn_weave(direction='left')
 
 
 	# PLAYER MOVEMENT
